@@ -39,9 +39,6 @@
 
 -define(SERVER, ?MODULE).
 
--define(WARN_OBJECT_SIZE_KB, 250).
--define(REJECT_OBJECT_SIZE_KB, 1000).
-
 -record(state, {
   mc_ref = erlang:error() :: reference()
 }).
@@ -295,13 +292,17 @@ handle_op(Key, Op, OldVClock, State0) ->
 %% TODO: Add metrics
 -spec(check_map(kv()) -> {error, Reason :: term()} | ok).
 check_map(NewKV = #kv{key = Key}) ->
+  WARN_OBJECT_SIZE_KB = erlang:list_to_integer(os:getenv("LASHUP_WARN_OBJECT_SIZE_KB","250")),
+  REJECT_OBJECT_SIZE_KB = erlang:list_to_integer(os:getenv("LASHUP_REJECT_OBJECT_SIZE_KB","1000")),
+  lager:debug("Using ~p KB size for WARN_OBJECT_SIZE_KB", [WARN_OBJECT_SIZE_KB]),
+  lager:debug("Using ~p KB size for REJECT_OBJECT_SIZE_KB", [REJECT_OBJECT_SIZE_KB]),
   case erlang:external_size(NewKV) of
-    Size when Size > ?REJECT_OBJECT_SIZE_KB * 10000 ->
+    Size when Size > REJECT_OBJECT_SIZE_KB * 10000 ->
       {error, value_too_large};
-    Size when Size > (?WARN_OBJECT_SIZE_KB + ?REJECT_OBJECT_SIZE_KB) / 2 * 10000 ->
+    Size when Size > (WARN_OBJECT_SIZE_KB + REJECT_OBJECT_SIZE_KB) / 2 * 10000 ->
       lager:warning("WARNING: Object '~p' is growing too large at ~p bytes (REJECTION IMMINENT)", [Key, Size]),
       ok;
-    Size when Size > ?WARN_OBJECT_SIZE_KB * 10000 ->
+    Size when Size > WARN_OBJECT_SIZE_KB * 10000 ->
       lager:warning("WARNING: Object '~p' is growing too large at ~p bytes", [Key, Size]),
       ok;
     _ ->
